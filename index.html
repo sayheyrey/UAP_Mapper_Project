@@ -1,0 +1,382 @@
+
+<!DOCTYPE html>
+
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>UAP Mapping System</title>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" rel="stylesheet"/>
+
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js">
+document.getElementById("drawer-save").addEventListener("click", () => {
+  if (!activeMarker) return;
+
+  const name = document.getElementById("drawer-name").value;
+  const notes = document.getElementById("drawer-notes").value;
+  const time = document.getElementById("drawer-time").value;
+  const pos = activeMarker.getLatLng();
+
+  activeMarker.bindTooltip(name || "🛸").openTooltip();
+
+  saveMarkerToFirestore(
+    activeMarker._customId,
+    pos.lat,
+    pos.lng,
+    name,
+    notes,
+    time
+  );
+
+  document.getElementById("marker-drawer").style.display = "none";
+});
+
+document.getElementById("drawer-delete").addEventListener("click", () => {
+  if (!activeMarker) return;
+
+  map.removeLayer(activeMarker);
+  db.collection("markers").doc(activeMarker._customId).delete();
+
+  document.getElementById("marker-drawer").style.display = "none";
+  activeMarker = null;
+});
+
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js">
+document.getElementById("drawer-save").addEventListener("click", () => {
+  if (!activeMarker) return;
+
+  const name = document.getElementById("drawer-name").value;
+  const notes = document.getElementById("drawer-notes").value;
+  const time = document.getElementById("drawer-time").value;
+  const pos = activeMarker.getLatLng();
+
+  activeMarker.bindTooltip(name || "🛸").openTooltip();
+
+  saveMarkerToFirestore(
+    activeMarker._customId,
+    pos.lat,
+    pos.lng,
+    name,
+    notes,
+    time
+  );
+
+  document.getElementById("marker-drawer").style.display = "none";
+});
+
+document.getElementById("drawer-delete").addEventListener("click", () => {
+  if (!activeMarker) return;
+
+  map.removeLayer(activeMarker);
+  db.collection("markers").doc(activeMarker._customId).delete();
+
+  document.getElementById("marker-drawer").style.display = "none";
+  activeMarker = null;
+});
+
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js">
+document.getElementById("drawer-save").addEventListener("click", () => {
+  if (!activeMarker) return;
+
+  const name = document.getElementById("drawer-name").value;
+  const notes = document.getElementById("drawer-notes").value;
+  const time = document.getElementById("drawer-time").value;
+  const pos = activeMarker.getLatLng();
+
+  activeMarker.bindTooltip(name || "🛸").openTooltip();
+
+  saveMarkerToFirestore(
+    activeMarker._customId,
+    pos.lat,
+    pos.lng,
+    name,
+    notes,
+    time
+  );
+
+  document.getElementById("marker-drawer").style.display = "none";
+});
+
+document.getElementById("drawer-delete").addEventListener("click", () => {
+  if (!activeMarker) return;
+
+  map.removeLayer(activeMarker);
+  db.collection("markers").doc(activeMarker._customId).delete();
+
+  document.getElementById("marker-drawer").style.display = "none";
+  activeMarker = null;
+});
+
+</script>
+
+</head>
+<body>
+<div class="ui-controls">
+<label><input id="toggle-heatmap" type="checkbox"/> Show UAP Heatmap</label>
+<label><input id="toggle-satellites" type="checkbox"/> Show Satellites</label>
+</div>
+<div id="map"></div>
+<script>
+      let activeMarker = null;
+
+      function showDrawer(marker, data = {}) {
+  activeMarker = marker;
+        document.getElementById("drawer-name").value = data.name || "";
+        document.getElementById("drawer-notes").value = data.notes || "";
+        document.getElementById("drawer-time").value = data.time || "";
+
+        document.getElementById("marker-drawer").style.display = "flex";
+      }
+
+      // Firebase
+      const firebaseConfig = {
+        apiKey: "AIzaSyBy05x8Df5zOjdjJ7wJs7T7UEK-S1BYDOk",
+        authDomain: "interactive-uap-mapping.firebaseapp.com",
+        projectId: "interactive-uap-mapping",
+        storageBucket: "interactive-uap-mapping.firebasestorage.app",
+        messagingSenderId: "94894681827",
+        appId: "1:94894681827:web:36ebe619918485e5799fd6",
+      };
+
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
+
+      const map = L.map("map", {
+        zoomControl: false,
+      }).fitWorld();
+      const ufoIcon = L.divIcon({
+        html: '<div style="font-size: 48px;">🛸</div>',
+        className: "",
+        iconSize: [48, 48],
+        iconAnchor: [24, 24],
+      });
+
+      L.control
+        .zoom({
+          position: "bottomright",
+        })
+        .addTo(map);
+
+      //map_layer
+      L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        {
+          attribution: "&copy; OpenStreetMap & Carto",
+        }
+      ).addTo(map);
+
+      map.locate({ setView: true, maxZoom: 16 });
+
+      const markers = [];
+
+      function addEditableMarker(
+        lat,
+        lng,
+        name = "",
+        notes = "",
+        id = null,
+        time = ""
+      ) {
+        const marker = L.marker([lat, lng], {
+          icon: ufoIcon,
+          draggable: true,
+        }).addTo(map);
+        marker._customId = id || crypto.randomUUID();
+        marker.on("click", () => {
+          showDrawer(marker, { name, notes, time });
+        });
+
+        
+
+        marker.on("dragend", () => {
+          const pos = marker.getLatLng();
+          saveMarkerToFirestore(
+            marker._customId,
+            pos.lat,
+            pos.lng,
+            name,
+            notes,
+            time
+          );
+        });
+
+        markers.push(marker);
+        return marker;
+      }
+
+      function getPopupHTML(name, notes, marker, time = "") {
+        return `
+    <input type="text" value="${name}" placeholder="Name" id="name">
+    <textarea placeholder="Notes" id="notes">${notes}</textarea>
+    <input type="datetime-local" value="${time}" id="sightingTime">
+    <div style="display: flex; justify-content: space-between; gap: 10px; margin-top: 8px;">
+      <button onclick="deleteMarker('${marker._customId}')"
+              style="background-color: #ff4d4d;">Delete</button>
+      <button onclick="saveMarker(this, '${marker._customId}')">Save</button>
+    </div>
+  `;
+      }
+
+      //Delete button
+      window.deleteMarker = function (id) {
+        const marker = markers.find((m) => m._customId === id);
+        if (marker) {
+          map.removeLayer(marker); // remove from map
+          db.collection("markers").doc(id).delete(); // remove from Firestore
+        }
+      };
+      //Save button
+      window.saveMarker = function (btn, id) {
+        const popup = btn.closest(".leaflet-popup-content");
+        const name = popup.querySelector("#name").value;
+        const notes = popup.querySelector("#notes").value;
+        const time = popup.querySelector("#sightingTime").value;
+        const marker = markers.find((m) => m._customId === id);
+        marker.bindPopup(getPopupHTML(name, notes, marker, time));
+        const pos = marker.getLatLng();
+        saveMarkerToFirestore(id, pos.lat, pos.lng, name, notes, time);
+      };
+
+      function saveMarkerToFirestore(id, lat, lng, name, notes, time) {
+        db.collection("markers").doc(id).set({ lat, lng, name, notes, time });
+      }
+
+      map.on('click', function (e) {
+  const now = new Date();
+  const localISOString = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16); // Format: YYYY-MM-DDTHH:MM for datetime-local
+
+  const marker = addEditableMarker(
+    e.latlng.lat,
+    e.latlng.lng,
+    '', // name
+    '', // notes
+    null, // id
+    localISOString, // auto-filled time
+    true // open drawer immediately
+  );
+
+  saveMarkerToFirestore(marker._customId, e.latlng.lat, e.latlng.lng, '', '', localISOString);
+});
+
+
+      db.collection("markers")
+        .get()
+        .then((snapshot) => {
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            addEditableMarker(
+              data.lat,
+              data.lng,
+              data.name,
+              data.notes,
+              doc.id,
+              data.time
+            );
+          });
+        });
+
+      const uapPoints = [
+        [37.7749, -122.4194],
+        [34.0522, -118.2437],
+        [40.7128, -74.006],
+        [51.5074, -0.1278],
+      ];
+      const heat = L.heatLayer(
+        uapPoints.map((p) => [...p, 0.5]),
+        { radius: 25 }
+      );
+
+      document
+        .getElementById("toggle-heatmap")
+        .addEventListener("change", (e) => {
+          if (e.target.checked) {
+            heat.addTo(map);
+          } else {
+            map.removeLayer(heat);
+          }
+        });
+
+      const satelliteLayer = L.layerGroup();
+      document
+        .getElementById("toggle-satellites")
+        .addEventListener("change", (e) => {
+          if (e.target.checked) {
+            fetch("https://api.wheretheiss.at/v1/satellites/25544")
+              .then((res) => res.json())
+              .then((data) => {
+                const sat = L.circleMarker([data.latitude, data.longitude], {
+                  radius: 8,
+                  color: "yellow",
+                }).addTo(satelliteLayer);
+                satelliteLayer.addTo(map);
+              });
+          } else {
+            satelliteLayer.clearLayers();
+            map.removeLayer(satelliteLayer);
+          }
+        });
+
+      function goToLatLon() {
+        const lat = parseFloat(document.getElementById("lat-input").value);
+        const lon = parseFloat(document.getElementById("lon-input").value);
+
+        if (!isNaN(lat) && !isNaN(lon)) {
+          map.setView([lat, lon], 14);
+        } else {
+          alert("Please enter valid coordinates.");
+        }
+      }
+    
+document.getElementById("drawer-save").addEventListener("click", () => {
+  if (!activeMarker) return;
+
+  const name = document.getElementById("drawer-name").value;
+  const notes = document.getElementById("drawer-notes").value;
+  const time = document.getElementById("drawer-time").value;
+  const pos = activeMarker.getLatLng();
+
+  activeMarker.bindTooltip(name || "🛸").openTooltip();
+
+  saveMarkerToFirestore(
+    activeMarker._customId,
+    pos.lat,
+    pos.lng,
+    name,
+    notes,
+    time
+  );
+
+  document.getElementById("marker-drawer").style.display = "none";
+});
+
+document.getElementById("drawer-delete").addEventListener("click", () => {
+  if (!activeMarker) return;
+
+  map.removeLayer(activeMarker);
+  db.collection("markers").doc(activeMarker._customId).delete();
+
+  document.getElementById("marker-drawer").style.display = "none";
+  activeMarker = null;
+});
+
+</script>
+<div class="latlon-input">
+<input id="lat-input" placeholder="Latitude" step="any" type="number"/>
+<input id="lon-input" placeholder="Longitude" step="any" type="number"/>
+<button onclick="goToLatLon()">Go</button>
+</div>
+<div id="marker-drawer" style="display: none">
+<input id="drawer-name" placeholder="Name" type="text"/>
+<textarea id="drawer-notes" placeholder="Notes"></textarea>
+<input id="drawer-time" type="datetime-local"/>
+<div class="drawer-buttons">
+<button id="drawer-save">Save</button>
+<button id="drawer-delete">Delete</button>
+</div>
+</div>
+</body>
+</html>
